@@ -29,8 +29,8 @@ app.use("/messages", messageRoutes);
 io.on("connection", (socket) => {
 console.log("Socket connected:", socket.id);
 });
-server.listen(5000, () => {
-console.log("Server running on http://localhost:5000");
+server.listen(PORT, () => {
+  console.log(`🚀 Backend running on port ${PORT}`);
 });
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
