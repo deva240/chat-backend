@@ -34,7 +34,12 @@ router.post("/", auth, async (req, res) => {
       [text, userId]
     );
 
-    res.json(result.rows[0]);
+    const message = result.rows[0];
+
+    // 🔥 THIS WAS MISSING — REALTIME UPDATE
+    req.io.emit("new_message", message);
+
+    res.status(201).json(message);
   } catch (err) {
     console.error("POST /messages error:", err.message);
     res.status(500).json({ error: "Failed to send message" });
