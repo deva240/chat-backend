@@ -42,6 +42,38 @@ router.post("/", auth, async (req, res) => {
     res.status(500).json({ error: "Failed to send message" });
   }
 });
+router.delete("/:id", auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.query("DELETE FROM messages WHERE id = $1", [id]);
+
+    req.io.emit("delete_message", id);
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Delete failed" });
+  }
+});
+router.put("/:id", auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { text } = req.body;
+
+    const result = await db.query(
+      "UPDATE messages SET text = $1 WHERE id = $2 RETURNING *",
+      [text, id]
+    );
+
+    const updated = result.rows[0];
+
+    req.io.emit("edit_message", updated);
+
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: "Edit failed" });
+  }
+});
+
 
 
 module.exports = router;
