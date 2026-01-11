@@ -20,30 +20,28 @@ router.get("/", auth, async (req, res) => {
 router.post("/", auth, async (req, res) => {
   try {
     const { text } = req.body;
-
-    if (!text) {
-      return res.status(400).json({ error: "Text required" });
-    }
-
     const userId = req.user.id;
 
     const result = await db.query(
-      `INSERT INTO messages (text, user_id)
-       VALUES ($1, $2)
-       RETURNING *`,
+      `
+      INSERT INTO messages (text, user_id)
+      VALUES ($1, $2)
+      RETURNING id, text, user_id, time
+      `,
       [text, userId]
     );
 
     const message = result.rows[0];
 
-    // 🔥 THIS WAS MISSING — REALTIME UPDATE
+    // 🔥 EMIT REALTIME MESSAGE
     req.io.emit("new_message", message);
 
-    res.status(201).json(message);
+    res.json(message);
   } catch (err) {
-    console.error("POST /messages error:", err.message);
+    console.error("POST /messages error:", err);
     res.status(500).json({ error: "Failed to send message" });
   }
 });
+
 
 module.exports = router;
