@@ -3,17 +3,15 @@ const router = express.Router();
 const db = require("../db");
 const auth = require("../middleware/authMiddleware");
 
-/* =========================
-   GET ALL MESSAGES
-========================= */
+// GET messages
 router.get("/", auth, async (req, res) => {
   try {
     const result = await db.query(`
-      SELECT
+      SELECT 
         messages.id,
         messages.text,
-        messages.time,
         messages.user_id,
+        messages.time,
         users.username
       FROM messages
       JOIN users ON users.id = messages.user_id
@@ -27,47 +25,57 @@ router.get("/", auth, async (req, res) => {
   }
 });
 
-/* =========================
-   CREATE MESSAGE
-========================= */
+// POST message
 router.post("/", auth, async (req, res) => {
   try {
     const { text } = req.body;
     const userId = req.user.id;
 
-    if (!text) {
-      return res.status(400).json({ error: "Text required" });
-    }
-
     const result = await db.query(
       `
       INSERT INTO messages (text, user_id)
       VALUES ($1, $2)
-      RETURNING
-        id,
-        text,
-        user_id,
-        time,
-        (SELECT username FROM users WHERE id = $2) AS username
+      RETURNING id, text, user_id, time
       `,
       [text, userId]
     );
 
-    const message = result.rows[0];
+    const user = await db.query(
+      "SELECT username FROM users WHERE id = $1",
+      [userId]
+    );
 
-    // 🔥 REALTIME CREATE
-    req.io.emit("new_message", message);
+    const message = {
+      ...result.rows[0],
+      username: user.rows[0].username,
+    };
 
-    res.status(201).json(message);
+    // ✅ SOCKET EVENT (MATCH FRONTEND)
+    req.io.emit("messageCreated", message);
+
+    res.json(message);
   } catch (err) {
-    console.error("POST /messages error:", err.message);
+    console.error("POST /messages error:", err);
     res.status(500).json({ error: "Failed to send message" });
   }
 });
 
-/* =========================
-   UPDATE MESSAGE
-========================= */
+// DELETE
+router.delete("/:id", auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await db.query("DELETE FROM messages WHERE id = $1", [id]);
+
+    req.io.emit("messageDeleted", { id: Number(id) });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Delete failed" });
+  }
+});
+
+// EDIT
 router.put("/:id", auth, async (req, res) => {
   try {
     const { id } = req.params;
@@ -78,44 +86,26 @@ router.put("/:id", auth, async (req, res) => {
       UPDATE messages
       SET text = $1
       WHERE id = $2
-      RETURNING
-        id,
-        text,
-        user_id,
-        time,
-        (SELECT username FROM users WHERE id = user_id) AS username
+      RETURNING id, text, user_id, time
       `,
       [text, id]
     );
 
-    const updated = result.rows[0];
+    const user = await db.query(
+      "SELECT username FROM users WHERE id = $1",
+      [result.rows[0].user_id]
+    );
 
-    // 🔥 REALTIME EDIT
-    req.io.emit("edit_message", updated);
+    const updated = {
+      ...result.rows[0],
+      username: user.rows[0].username,
+    };
+
+    req.io.emit("messageUpdated", updated);
 
     res.json(updated);
   } catch (err) {
-    console.error("PUT /messages error:", err.message);
     res.status(500).json({ error: "Edit failed" });
-  }
-});
-
-/* =========================
-   DELETE MESSAGE
-========================= */
-router.delete("/:id", auth, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    await db.query("DELETE FROM messages WHERE id = $1", [id]);
-
-    // 🔥 REALTIME DELETE
-    req.io.emit("delete_message", Number(id));
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error("DELETE /messages error:", err.message);
-    res.status(500).json({ error: "Delete failed" });
   }
 });
 
