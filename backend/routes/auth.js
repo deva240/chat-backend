@@ -1,43 +1,40 @@
 const express = require("express");
+const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const User = require("../models/User");
 const router = express.Router();
 
-const users = [];
-
-router.post("/register", (req, res) => {
+router.post("/register", async (req, res) => {
   const { username, password } = req.body;
 
-  if (users.find(u => u.username === username)) {
+  if (await User.findOne({ username })) {
     return res.status(400).json({ message: "User exists" });
   }
 
-  const user = {
-    id: users.length + 1,
-    username,
-    password
-  };
+  const hashed = await bcrypt.hash(password, 10);
+  const user = await User.create({ username, password: hashed });
 
-  users.push(user);
   res.json({ message: "Registered" });
 });
 
-router.post("/login", (req, res) => {
+router.post("/login", async (req, res) => {
   const { username, password } = req.body;
-  const user = users.find(u => u.username === username && u.password === password);
 
-  if (!user) {
-    return res.status(401).json({ message: "Invalid login" });
-  }
+  const user = await User.findOne({ username });
+  if (!user) return res.status(401).json({ message: "Invalid login" });
+
+  const ok = await bcrypt.compare(password, user.password);
+  if (!ok) return res.status(401).json({ message: "Invalid login" });
 
   const token = jwt.sign(
-    { id: user.id, username: user.username },
-    process.env.JWT_SECRET || "secretkey",
-    { expiresIn: "1d" }
+    { id: user._id, username: user.username },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" }
   );
 
   res.json({
     token,
-    user: { id: user.id, username: user.username }
+    user: { id: user._id, username: user.username }
   });
 });
 

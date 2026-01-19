@@ -1,35 +1,22 @@
 const express = require("express");
-const http = require("http");
-const cors = require("cors");
-const { Server } = require("socket.io");
+const auth = require("../middleware/authMiddleware");
+const Message = require("../models/Message");
+const router = express.Router();
 
-const authRoutes = require("./routes/auth");
-const messageRoutes = require("./routes/messages");
-
-const app = express();
-app.use(cors({
-  origin: "*"
-}));
-app.use(express.json());
-
-const server = http.createServer(app);
-
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
+router.get("/", auth, async (req, res) => {
+  const messages = await Message.find().populate("user", "username");
+  res.json(messages);
 });
 
-// 🔴 IMPORTANT: attach io SAFELY
-app.use((req, res, next) => {
-  req.io = io;
-  next();
+router.post("/", auth, async (req, res) => {
+  const msg = await Message.create({
+    text: req.body.text,
+    user: req.user.id
+  });
+
+  const populated = await msg.populate("user", "username");
+  req.io.emit("new_message", populated);
+  res.json(populated);
 });
 
-app.use("/auth", authRoutes);
-app.use("/messages", messageRoutes);
-
-server.listen(5000, () => {
-  console.log("Backend running on port 5000");
-});
+module.exports = router;
