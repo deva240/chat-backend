@@ -7,12 +7,21 @@ const authRoutes = require("./routes/auth");
 const messageRoutes = require("./routes/messages");
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: "*"
+}));
 app.use(express.json());
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
 
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+// 🔴 IMPORTANT: attach io SAFELY
 app.use((req, res, next) => {
   req.io = io;
   next();

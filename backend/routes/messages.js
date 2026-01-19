@@ -10,6 +10,14 @@ router.get("/", auth, (req, res) => {
 });
 
 router.post("/", auth, (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  if (!req.io) {
+    return res.status(500).json({ message: "Socket not available" });
+  }
+
   const msg = {
     id: id++,
     text: req.body.text,
@@ -19,9 +27,11 @@ router.post("/", auth, (req, res) => {
   };
 
   messages.push(msg);
+
   req.io.emit("new_message", msg);
   res.json(msg);
 });
+
 
 router.put("/:id", auth, (req, res) => {
   const msg = messages.find(m => m.id == req.params.id);
