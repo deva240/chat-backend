@@ -4,7 +4,7 @@ const pool = require("../db");
 
 const router = express.Router();
 
-/* GET all messages */
+/* GET messages */
 router.get("/", auth, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -19,18 +19,27 @@ router.get("/", auth, async (req, res) => {
 
     res.json(result.rows);
   } catch (err) {
-    console.error("GET MESSAGES ERROR:", err);
-    res.status(500).json({ message: "Server error" });
+    console.error("GET /messages ERROR:", err);
+    res.status(500).json({ message: "Failed to load messages" });
   }
 });
 
-/* POST a message */
+/* POST message */
 router.post("/", auth, async (req, res) => {
   try {
     const { text } = req.body;
 
+    if (!text || !text.trim()) {
+      return res.status(400).json({ message: "Message text required" });
+    }
+
+    if (!req.user || !req.user.id) {
+      console.error("AUTH USER MISSING:", req.user);
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const result = await pool.query(
-      "INSERT INTO messages (text, user_id) VALUES ($1,$2) RETURNING id, text, created_at",
+      "INSERT INTO messages (text, user_id) VALUES ($1, $2) RETURNING id, text, created_at",
       [text, req.user.id]
     );
 
@@ -42,8 +51,8 @@ router.post("/", auth, async (req, res) => {
     req.io.emit("new_message", message);
     res.json(message);
   } catch (err) {
-    console.error("POST MESSAGE ERROR:", err);
-    res.status(500).json({ message: "Server error" });
+    console.error("POST /messages ERROR:", err);
+    res.status(500).json({ message: "Failed to send message" });
   }
 });
 
