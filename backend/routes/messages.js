@@ -8,13 +8,15 @@ const router = express.Router();
 router.get("/", auth, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT messages.id,
-             messages.text,
-             messages.created_at,
-             users.username
+      SELECT 
+        messages.id,
+        messages.text,
+        messages.updated_at,
+        users.username,
+        users.id AS user_id
       FROM messages
       JOIN users ON users.id = messages.user_id
-      ORDER BY messages.created_at ASC
+      ORDER BY messages.updated_at ASC
     `);
 
     res.json(result.rows);
@@ -34,18 +36,22 @@ router.post("/", auth, async (req, res) => {
     }
 
     if (!req.user || !req.user.id) {
-      console.error("AUTH USER MISSING:", req.user);
       return res.status(401).json({ message: "Unauthorized" });
     }
 
     const result = await pool.query(
-      "INSERT INTO messages (text, user_id) VALUES ($1, $2) RETURNING id, text, created_at",
+      `
+      INSERT INTO messages (text, user_id)
+      VALUES ($1, $2)
+      RETURNING id, text, updated_at
+      `,
       [text, req.user.id]
     );
 
     const message = {
       ...result.rows[0],
       username: req.user.username,
+      user_id: req.user.id,
     };
 
     req.io.emit("new_message", message);
