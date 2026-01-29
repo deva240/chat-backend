@@ -1,22 +1,33 @@
+require("dotenv").config();
 const express = require("express");
-const auth = require("../middleware/authMiddleware");
-const Message = require("../models/Message");
-const router = express.Router();
+const cors = require("cors");
+const http = require("http");
+const { Server } = require("socket.io");
 
-router.get("/", auth, async (req, res) => {
-  const messages = await Message.find().populate("user", "username");
-  res.json(messages);
+const authRoutes = require("./routes/auth");
+const messageRoutes = require("./routes/messages");
+
+const app = express();
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: { origin: "*" },
 });
 
-router.post("/", auth, async (req, res) => {
-  const msg = await Message.create({
-    text: req.body.text,
-    user: req.user.id
-  });
+app.use(cors());
+app.use(express.json());
 
-  const populated = await msg.populate("user", "username");
-  req.io.emit("new_message", populated);
-  res.json(populated);
+/* socket injection */
+app.use((req, res, next) => {
+  req.io = io;
+  next();
 });
 
-module.exports = router;
+/* routes */
+app.use("/auth", authRoutes);
+app.use("/messages", messageRoutes);
+
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+  console.log("Server running on port", PORT);
+});
